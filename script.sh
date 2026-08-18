@@ -134,10 +134,10 @@ EOF
     PRIORITY_CLASS_NAME="scenario2-critical"
     PRIORITY_CLASS_VALUE=1000000
 
-    INSTR_IMAGE="${SCENARIO2_INSTR_IMAGE:-REPLACE_ME/scenario2-instructions:latest}"
-    APP_A_IMAGE="${SCENARIO2_APP_A_IMAGE:-REPLACE_ME/scenario2-application-a:latest}"
-    APP_B_IMAGE="${SCENARIO2_APP_B_IMAGE:-REPLACE_ME/scenario2-application-b:latest}"
-    APP_C_IMAGE="${SCENARIO2_APP_C_IMAGE:-REPLACE_ME/scenario2-application-c:latest}"
+    INSTR_IMAGE="${SCENARIO2_INSTR_IMAGE:-r0xhit/eks-lab-scenario2-instructions:latest}"
+    APP_A_IMAGE="${SCENARIO2_APP_A_IMAGE:-r0xhit/eks-lab-scenario2-application-a:latest}"
+    APP_B_IMAGE="${SCENARIO2_APP_B_IMAGE:-r0xhit/eks-lab-scenario2-application-b:latest}"
+    APP_C_IMAGE="${SCENARIO2_APP_C_IMAGE:-r0xhit/eks-lab-scenario2-application-c:latest}"
 
     INSTR_REPLICAS="${INSTR_REPLICAS:-4}"
     INSTR_CPU="${INSTR_CPU:-250m}"

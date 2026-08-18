@@ -26,16 +26,15 @@ def request_loop():
         try:
             resp = requests.get(url, timeout=TIMEOUT)
             if resp.status_code == 200:
-                log.info("request completed successfully end-to-end (C -> A -> B -> C)")
+                log.info("success - full request/response chain working end-to-end (C -> A -> B -> C)")
             else:
                 log.info(
-                    "req was sent successfully however did not receive an expected response "
-                    "(status=%s). Maybe something wrong with application-a?", resp.status_code,
+                    "able to reach application-a but not getting the expected response "
+                    "(status=%s) - something wrong with application-a", resp.status_code,
                 )
-        except requests.exceptions.RequestException as exc:
+        except requests.exceptions.RequestException:
             log.info(
-                "sending req to application-a but seems like something is wrong. "
-                "Is %s working? (%s)", url, exc,
+                "unable to reach application-a - can you check if the /sample-req endpoint is exposed?"
             )
         time.sleep(INTERVAL)
 

@@ -30,9 +30,8 @@ def sample_req():
         status_code=200,
         content={
             "status": "reachable",
-            "hint": "application-a is up. If an automated caller is still failing, check its "
-                     "service-discovery env vars (namespace-qualified DNS name) - and make sure "
-                     "it's calling /relay, not /sample-req.",
+            "hint": "application-a is reachable. Can you check the env vars for application-c? "
+                     "Could be something wrong there.",
         },
     )
 
@@ -46,25 +45,18 @@ def relay():
         resp = requests.get(b_url, timeout=TIMEOUT)
         body = resp.json() if resp.content else {}
         if resp.status_code == 200 and body.get("status") == "ok":
-            log.info("request sent to application-b, received a valid response - chain OK")
+            log.info("able to reach application-b and got a valid response")
             return JSONResponse(status_code=200, content={"status": "ok"})
         log.info(
-            "request sent to application-b but not getting a valid response, "
-            "maybe something wrong with application-c"
+            "able to reach application-b, but not getting the expected response - "
+            "something wrong at application-b's end"
         )
         return JSONResponse(status_code=502, content={"status": "error", "stage": "a-to-b", "detail": body})
-    except requests.exceptions.RequestException as exc:
-        log.info(
-            "received req from caller but failed sending req to application-b. "
-            "Reason: network policy (%s)", exc,
-        )
+    except requests.exceptions.RequestException:
+        log.info("received req from application-c but unable to send req to application-b")
         return JSONResponse(
             status_code=502,
-            content={
-                "status": "error",
-                "stage": "a-to-b",
-                "detail": "could not reach application-b - check NetworkPolicy",
-            },
+            content={"status": "error", "stage": "a-to-b", "detail": "could not reach application-b"},
         )
 
 

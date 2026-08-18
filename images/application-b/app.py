@@ -30,11 +30,8 @@ def relay():
             return JSONResponse(status_code=200, content={"status": "ok"})
         log.info("forwarded to application-c but got an unexpected status: %s", resp.status_code)
         return JSONResponse(status_code=502, content={"status": "error", "stage": "b-to-c"})
-    except requests.exceptions.RequestException as exc:
-        log.info(
-            "received req from application-a, tried forwarding to application-c, but failed - "
-            "reason: %s (does application-c have a Service at all?)", exc,
-        )
+    except requests.exceptions.RequestException:
+        log.info("unable to reach application-c")
         return JSONResponse(status_code=502, content={"status": "error", "stage": "b-to-c"})
 
 

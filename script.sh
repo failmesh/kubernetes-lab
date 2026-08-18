@@ -393,7 +393,13 @@ EOF
     # deployment was just created or already existed - so re-running this
     # scenario after fixing a knob (e.g. INSTR_IMAGE) actually takes effect
     # instead of silently no-op'ing on a stale deployment.
-    kubectl set image deployment/instructions -n default "instructions=${INSTR_IMAGE}"
+    #
+    # `kubectl create deployment` names the container after the image's own
+    # repo name (e.g. "eks-lab-scenario2-instructions"), NOT the deployment
+    # name - so look it up instead of assuming it's called "instructions".
+    INSTR_CONTAINER_NAME="$(kubectl get deployment instructions -n default \
+      -o jsonpath='{.spec.template.spec.containers[0].name}')"
+    kubectl set image deployment/instructions -n default "${INSTR_CONTAINER_NAME}=${INSTR_IMAGE}"
     kubectl scale deployment/instructions -n default --replicas="${INSTR_REPLICAS}"
 
     kubectl set resources deployment/instructions -n default \

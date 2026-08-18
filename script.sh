@@ -140,8 +140,15 @@ EOF
     APP_C_IMAGE="${SCENARIO2_APP_C_IMAGE:-r0xhit/eks-lab-scenario2-application-c:latest}"
 
     INSTR_REPLICAS="${INSTR_REPLICAS:-4}"
-    INSTR_CPU="${INSTR_CPU:-250m}"
-    INSTR_MEM="${INSTR_MEM:-300Mi}"
+    # Live-tested on Killercoda: node01's real Allocatable CPU sits in
+    # [900m, 1000m) - at 250m/replica, 3 fit (750m) and leave enough of a
+    # gap (>=150m) for application-a to slip in anyway. 300m/replica closes
+    # that gap to <100m across the whole observed range, which is less than
+    # APP_CPU, so application-a can no longer fit until instructions is
+    # scaled down. Re-tune if `kubectl describe node node01` shows a very
+    # different Allocatable on your cluster.
+    INSTR_CPU="${INSTR_CPU:-300m}"
+    INSTR_MEM="${INSTR_MEM:-350Mi}"
 
     APP_CPU="${APP_CPU:-150m}"
     APP_MEM="${APP_MEM:-200Mi}"

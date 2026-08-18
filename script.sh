@@ -134,10 +134,10 @@ EOF
     PRIORITY_CLASS_NAME="scenario2-critical"
     PRIORITY_CLASS_VALUE=1000000
 
-    INSTR_IMAGE="${SCENARIO2_INSTR_IMAGE:-REPLACE_ME/scenario2-instructions:latest}"
-    APP_A_IMAGE="${SCENARIO2_APP_A_IMAGE:-REPLACE_ME/scenario2-application-a:latest}"
-    APP_B_IMAGE="${SCENARIO2_APP_B_IMAGE:-REPLACE_ME/scenario2-application-b:latest}"
-    APP_C_IMAGE="${SCENARIO2_APP_C_IMAGE:-REPLACE_ME/scenario2-application-c:latest}"
+    INSTR_IMAGE="${SCENARIO2_INSTR_IMAGE:-r0xhit/eks-lab-scenario2-instructions:latest}"
+    APP_A_IMAGE="${SCENARIO2_APP_A_IMAGE:-r0xhit/eks-lab-scenario2-application-a:latest}"
+    APP_B_IMAGE="${SCENARIO2_APP_B_IMAGE:-r0xhit/eks-lab-scenario2-application-b:latest}"
+    APP_C_IMAGE="${SCENARIO2_APP_C_IMAGE:-r0xhit/eks-lab-scenario2-application-c:latest}"
 
     INSTR_REPLICAS="${INSTR_REPLICAS:-4}"
     INSTR_CPU="${INSTR_CPU:-250m}"
@@ -380,20 +380,27 @@ EOF
     kubectl apply -f application-c/deployment.yaml
 
     if kubectl get deployment instructions -n default >/dev/null 2>&1; then
-        echo "instructions deployment already exists in default namespace, skipping creation"
-        echo "(run 'kubectl delete deployment instructions -n default' first to regenerate it)"
+        echo "instructions deployment already exists in default namespace, syncing it to current settings ..."
     else
         echo "Creating the instructions deployment via kubectl CLI (no YAML file) ..."
         kubectl create deployment instructions \
           --image="${INSTR_IMAGE}" \
           --replicas="${INSTR_REPLICAS}" \
           -n default
+    fi
 
-        kubectl set resources deployment/instructions -n default \
-          --requests="cpu=${INSTR_CPU},memory=${INSTR_MEM}" \
-          --limits="cpu=${INSTR_CPU},memory=${INSTR_MEM}"
+    # Always re-sync image/replicas/resources/scheduling below, whether the
+    # deployment was just created or already existed - so re-running this
+    # scenario after fixing a knob (e.g. INSTR_IMAGE) actually takes effect
+    # instead of silently no-op'ing on a stale deployment.
+    kubectl set image deployment/instructions -n default "instructions=${INSTR_IMAGE}"
+    kubectl scale deployment/instructions -n default --replicas="${INSTR_REPLICAS}"
 
-        kubectl patch deployment instructions -n default --type=merge -p "$(cat <<PATCH
+    kubectl set resources deployment/instructions -n default \
+      --requests="cpu=${INSTR_CPU},memory=${INSTR_MEM}" \
+      --limits="cpu=${INSTR_CPU},memory=${INSTR_MEM}"
+
+    kubectl patch deployment instructions -n default --type=merge -p "$(cat <<PATCH
 {
   "spec": {
     "template": {
@@ -411,7 +418,6 @@ EOF
 }
 PATCH
 )"
-    fi
 
     echo ""
     echo "scenario2 is live. Start here:"

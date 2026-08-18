@@ -109,11 +109,11 @@ EOF
     # Killercoda cluster (nodes: controlplane, node01 - 1 CPU / 2Gi each).
     #
     # Unlike scenario1, this one applies everything itself: it writes
-    # application-a/, application-b/, application-c/ (YAML only) into the
-    # current directory, then runs kubectl to create namespaces, taint
-    # node01, create a PriorityClass, apply the three app folders, and
-    # create the "instructions" deployment purely via kubectl CLI verbs
-    # (create/set/patch - no YAML file for it).
+    # application-a/, application-b/, application-c/, and instructions/
+    # (YAML only) into the current directory, then runs kubectl to create
+    # namespaces, taint node01, create a PriorityClass, and apply all four
+    # folders - instructions first, so it occupies node01 before
+    # application-a is ever applied.
     #
     # Resource requests below are best-guess for a 1 CPU / 2Gi node and
     # may need tuning against the real cluster's Allocatable capacity
@@ -147,7 +147,7 @@ EOF
     APP_MEM="${APP_MEM:-200Mi}"
 
     echo "Generating manifests for scenario2 ..."
-    mkdir -p application-a application-b application-c
+    mkdir -p application-a application-b application-c instructions
 
     cat > application-a/namespace.yaml << EOF
 apiVersion: v1
@@ -348,6 +348,44 @@ spec:
               memory: "${APP_MEM}"
 EOF
 
+    cat > instructions/deployment.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: instructions
+  namespace: default
+  labels:
+    app: instructions
+spec:
+  replicas: ${INSTR_REPLICAS}
+  selector:
+    matchLabels:
+      app: instructions
+  template:
+    metadata:
+      labels:
+        app: instructions
+    spec:
+      priorityClassName: ${PRIORITY_CLASS_NAME}
+      nodeSelector:
+        kubernetes.io/hostname: ${NODE01_NAME}
+      tolerations:
+        - key: "${NODE01_TAINT_KEY}"
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: instructions
+          image: ${INSTR_IMAGE}
+          resources:
+            requests:
+              cpu: "${INSTR_CPU}"
+              memory: "${INSTR_MEM}"
+            limits:
+              cpu: "${INSTR_CPU}"
+              memory: "${INSTR_MEM}"
+EOF
+
     echo "Applying namespaces ..."
     kubectl apply -f application-a/namespace.yaml
     kubectl apply -f application-b/namespace.yaml
@@ -367,58 +405,14 @@ globalDefault: false
 description: "Reserved for the scenario2 instructions pods."
 EOF
 
-    # The instructions deployment MUST be created/synced before
-    # application-a is ever applied. application-a can only tolerate
-    # node01's taint (not controlplane's), so node01 is its only viable
-    # node - if application-a gets applied first, it schedules into an
-    # empty node01 and claims capacity before instructions ever gets a
-    # chance to, which skips the entire "why is application-a pending"
-    # puzzle. instructions must occupy node01 first.
-    if kubectl get deployment instructions -n default >/dev/null 2>&1; then
-        echo "instructions deployment already exists in default namespace, syncing it to current settings ..."
-    else
-        echo "Creating the instructions deployment via kubectl CLI (no YAML file) ..."
-        kubectl create deployment instructions \
-          --image="${INSTR_IMAGE}" \
-          --replicas="${INSTR_REPLICAS}" \
-          -n default
-    fi
-
-    # Always re-sync image/replicas/resources/scheduling below, whether the
-    # deployment was just created or already existed - so re-running this
-    # scenario after fixing a knob (e.g. INSTR_IMAGE) actually takes effect
-    # instead of silently no-op'ing on a stale deployment.
-    #
-    # `kubectl create deployment` names the container after the image's own
-    # repo name (e.g. "eks-lab-scenario2-instructions"), NOT the deployment
-    # name - so look it up instead of assuming it's called "instructions".
-    INSTR_CONTAINER_NAME="$(kubectl get deployment instructions -n default \
-      -o jsonpath='{.spec.template.spec.containers[0].name}')"
-    kubectl set image deployment/instructions -n default "${INSTR_CONTAINER_NAME}=${INSTR_IMAGE}"
-    kubectl scale deployment/instructions -n default --replicas="${INSTR_REPLICAS}"
-
-    kubectl set resources deployment/instructions -n default \
-      --requests="cpu=${INSTR_CPU},memory=${INSTR_MEM}" \
-      --limits="cpu=${INSTR_CPU},memory=${INSTR_MEM}"
-
-    kubectl patch deployment instructions -n default --type=merge -p "$(cat <<PATCH
-{
-  "spec": {
-    "template": {
-      "spec": {
-        "priorityClassName": "${PRIORITY_CLASS_NAME}",
-        "nodeSelector": {
-          "kubernetes.io/hostname": "${NODE01_NAME}"
-        },
-        "tolerations": [
-          {"key": "${NODE01_TAINT_KEY}", "operator": "Equal", "value": "true", "effect": "NoSchedule"}
-        ]
-      }
-    }
-  }
-}
-PATCH
-)"
+    # instructions MUST be applied before application-a. application-a can
+    # only tolerate node01's taint (not controlplane's), so node01 is its
+    # only viable node - if application-a gets applied first, it schedules
+    # into an empty node01 and claims capacity before instructions ever
+    # gets a chance to, which skips the entire "why is application-a
+    # pending" puzzle. instructions must occupy node01 first.
+    echo "Applying instructions ..."
+    kubectl apply -f instructions/deployment.yaml
 
     echo "Giving the scheduler a head start on the instructions pods before application-a shows up ..."
     sleep "${INSTR_SCHEDULING_HEAD_START:-10}"

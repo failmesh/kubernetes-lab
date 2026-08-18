@@ -367,18 +367,13 @@ globalDefault: false
 description: "Reserved for the scenario2 instructions pods."
 EOF
 
-    echo "Applying application-a ..."
-    kubectl apply -f application-a/deployment.yaml
-    kubectl apply -f application-a/service.yaml
-
-    echo "Applying application-b ..."
-    kubectl apply -f application-b/deployment.yaml
-    kubectl apply -f application-b/service.yaml
-    kubectl apply -f application-b/networkpolicy.yaml
-
-    echo "Applying application-c (no service.yaml on purpose) ..."
-    kubectl apply -f application-c/deployment.yaml
-
+    # The instructions deployment MUST be created/synced before
+    # application-a is ever applied. application-a can only tolerate
+    # node01's taint (not controlplane's), so node01 is its only viable
+    # node - if application-a gets applied first, it schedules into an
+    # empty node01 and claims capacity before instructions ever gets a
+    # chance to, which skips the entire "why is application-a pending"
+    # puzzle. instructions must occupy node01 first.
     if kubectl get deployment instructions -n default >/dev/null 2>&1; then
         echo "instructions deployment already exists in default namespace, syncing it to current settings ..."
     else
@@ -424,6 +419,21 @@ EOF
 }
 PATCH
 )"
+
+    echo "Giving the scheduler a head start on the instructions pods before application-a shows up ..."
+    sleep "${INSTR_SCHEDULING_HEAD_START:-10}"
+
+    echo "Applying application-a ..."
+    kubectl apply -f application-a/deployment.yaml
+    kubectl apply -f application-a/service.yaml
+
+    echo "Applying application-b ..."
+    kubectl apply -f application-b/deployment.yaml
+    kubectl apply -f application-b/service.yaml
+    kubectl apply -f application-b/networkpolicy.yaml
+
+    echo "Applying application-c (no service.yaml on purpose) ..."
+    kubectl apply -f application-c/deployment.yaml
 
     echo ""
     echo "scenario2 is live. Start here:"
